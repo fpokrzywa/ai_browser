@@ -1,12 +1,11 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
-import { RefreshCw, X, ChevronDown, ChevronRight, HelpCircle, Sparkles } from 'lucide-react';
-import { cn } from '@/lib/utils';
+import { RefreshCw, X, Sparkles } from 'lucide-react';
 import { getFindAnswersDetailById } from '@/services/findAnswersService';
+import { FishIcon } from './FishIcon';
+import { PromptCatalogModal } from './PromptCatalogModal';
+import './FindAnswersPanel.css';
 
 interface Article {
     id: string;
@@ -38,11 +37,17 @@ export function FindAnswersPanel({ findAnswersId, onClose }: FindAnswersPanelPro
     console.log('FindAnswersPanel mounted with ID:', findAnswersId);
     const [data, setData] = useState<FindAnswersData | null>(null);
     const [loading, setLoading] = useState(true);
-    const [openArticles, setOpenArticles] = useState<Set<string>>(new Set());
-    const [showDebug, setShowDebug] = useState(false);
+    const [isCenterPanelOpen, setIsCenterPanelOpen] = useState(true);
+    const [messageInput, setMessageInput] = useState('');
+    const [isDebugOpen, setIsDebugOpen] = useState(false);
+    const [isPromptModalOpen, setIsPromptModalOpen] = useState(false);
 
     useEffect(() => {
         loadFindAnswersData();
+    }, [findAnswersId]);
+
+    useEffect(() => {
+        setIsCenterPanelOpen(true);
     }, [findAnswersId]);
 
     const loadFindAnswersData = async () => {
@@ -59,22 +64,18 @@ export function FindAnswersPanel({ findAnswersId, onClose }: FindAnswersPanelPro
         }
     };
 
-    const toggleArticle = (articleId: string) => {
-        const newOpenArticles = new Set(openArticles);
-        if (newOpenArticles.has(articleId)) {
-            newOpenArticles.delete(articleId);
-        } else {
-            newOpenArticles.add(articleId);
+    const handleSendMessage = () => {
+        if (messageInput.trim()) {
+            console.log('Sending message:', messageInput);
+            setMessageInput('');
         }
-        setOpenArticles(newOpenArticles);
     };
 
-    const formatDate = (dateString: string) => {
-        return new Date(dateString).toLocaleDateString('en-US', {
-            year: 'numeric',
-            month: 'numeric', 
-            day: 'numeric'
-        });
+    const handleKeyPress = (e: React.KeyboardEvent) => {
+        if (e.key === 'Enter' && !e.shiftKey) {
+            e.preventDefault();
+            handleSendMessage();
+        }
     };
 
     console.log('FindAnswersPanel render state:', { loading, hasData: !!data, dataTitle: data?.title });
@@ -82,11 +83,13 @@ export function FindAnswersPanel({ findAnswersId, onClose }: FindAnswersPanelPro
     if (loading) {
         console.log('Rendering loading state');
         return (
-            <div className="flex-1 bg-gray-50 overflow-auto">
-                <div className="w-full p-6 pr-8 flex items-center justify-center h-64">
-                    <div className="flex items-center space-x-2">
-                        <RefreshCw className="h-4 w-4 animate-spin" />
-                        <span>Loading Find Answers...</span>
+            <div className="find-answers-layout">
+                <div className="center-panel">
+                    <div className="center-panel-content">
+                        <div className="flex items-center justify-center space-x-2">
+                            <RefreshCw className="h-4 w-4 animate-spin" />
+                            <span>Loading Find Answers...</span>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -95,9 +98,11 @@ export function FindAnswersPanel({ findAnswersId, onClose }: FindAnswersPanelPro
 
     if (!data) {
         return (
-            <div className="flex-1 bg-gray-50 overflow-auto">
-                <div className="w-full p-6 pr-8 flex items-center justify-center h-64">
-                    <span className="text-gray-500">No data found for {findAnswersId}</span>
+            <div className="find-answers-layout">
+                <div className="center-panel">
+                    <div className="center-panel-content">
+                        <span className="text-gray-500">No data found for {findAnswersId}</span>
+                    </div>
                 </div>
             </div>
         );
@@ -105,134 +110,204 @@ export function FindAnswersPanel({ findAnswersId, onClose }: FindAnswersPanelPro
 
     console.log('Rendering main content with data:', data);
     return (
-        <div className="flex-1 bg-gray-50 overflow-auto">
-            <div className="w-full p-6 pr-8">
-                {/* Header */}
-                <div className="mb-8 flex items-start justify-between">
-                    <div className="flex-1">
-                        <h1 className="text-3xl font-bold text-gray-900 mb-4">{data.title}</h1>
-                        <p className="text-gray-600 text-lg leading-relaxed">{data.description}</p>
-                    </div>
-                    <div className="flex items-center space-x-2 ml-4">
-                        <Button 
-                            variant="outline" 
-                            size="sm" 
-                            onClick={loadFindAnswersData}
-                            className="flex items-center space-x-2 px-3 py-2"
-                            title="Refresh knowledge articles"
-                        >
-                            <RefreshCw className="h-4 w-4" />
-                            <span className="text-sm">Refresh</span>
-                        </Button>
-                        <Button 
-                            variant="ghost" 
-                            size="sm" 
-                            onClick={onClose}
-                            className="p-2 text-gray-400 hover:text-gray-600"
-                            title="Close panel"
-                        >
-                            <X className="h-4 w-4" />
-                        </Button>
-                    </div>
-                </div>
-
-                {/* Try It Yourself Section */}
-                {data.scenario && (
-                    <div className="bg-gradient-to-r from-orange-50 to-orange-100 border border-orange-200 rounded-lg p-6 mb-8">
-                        <div className="flex items-start space-x-3 mb-4">
-                            <Sparkles className="w-5 h-5 text-orange-600 mt-0.5 flex-shrink-0" />
-                            <h2 className="text-lg font-semibold text-orange-900">Try it yourself!</h2>
+        <div className="find-answers-layout">
+            {isCenterPanelOpen && (
+                <div className="center-panel">
+                    <div className="center-panel-header">
+                        <div>
+                            <h1 className="center-panel-title">{data.title}</h1>
+                            <p className="center-panel-description">{data.description}</p>
                         </div>
-                        <div className="text-gray-700 mb-4">
-                            <p className="mb-4">{data.scenario}</p>
-                            {data.actions && (
-                                <ul className="space-y-2 ml-4">
+                        <div className="center-panel-actions">
+                            <button className="refresh-button" title="Refresh" onClick={loadFindAnswersData}>
+                                <RefreshCw size={18} />
+                                <span>Refresh</span>
+                            </button>
+                            <button
+                                className="close-button"
+                                onClick={() => setIsCenterPanelOpen(false)}
+                                title="Close panel"
+                            >
+                                <X size={20} />
+                            </button>
+                        </div>
+                    </div>
+
+                    <div className="center-panel-content">
+                        <div className="info-box">
+                            <div className="info-box-header">
+                                <Sparkles size={20} className="info-icon" />
+                                <span className="info-title">Try it yourself!</span>
+                            </div>
+                            <p className="info-description">
+                                {data.scenario || `Explore ${data.title} to find helpful information and resources.`}
+                            </p>
+                            {data.actions && data.actions.length > 0 ? (
+                                <ul className="info-list">
                                     {data.actions.map((action, index) => (
-                                        <li key={index} className="flex items-start">
-                                            <span className="w-2 h-2 bg-orange-400 rounded-full mt-2 mr-3 flex-shrink-0"></span>
-                                            <span>{action}</span>
-                                        </li>
+                                        <li key={index}>{action}</li>
                                     ))}
+                                </ul>
+                            ) : (
+                                <ul className="info-list">
+                                    <li>Ask ODIN questions about {data.title.toLowerCase()}</li>
                                 </ul>
                             )}
                         </div>
-                    </div>
-                )}
 
-                {/* Articles Section */}
-                <div className="mb-8">
-                    <h3 className="text-xl font-semibold text-gray-900 mb-6">
-                        Here are the sample articles that power the answers about your questions
-                    </h3>
-                    
-                    <div className="space-y-3">
-                        {data.articles.map((article) => (
-                            <Collapsible
-                                key={article.id}
-                                open={openArticles.has(article.id)}
-                                onOpenChange={() => toggleArticle(article.id)}
-                            >
-                                <div className="bg-white border border-gray-200 rounded-lg">
-                                    <CollapsibleTrigger asChild>
-                                        <button className="w-full flex items-center justify-between p-4 text-left hover:bg-gray-50 transition-colors">
-                                            <span className="font-medium text-gray-900">{article.policyName}</span>
-                                            {openArticles.has(article.id) ? 
-                                                <ChevronDown className="w-5 h-5 text-gray-400" /> : 
-                                                <ChevronRight className="w-5 h-5 text-gray-400" />
-                                            }
-                                        </button>
-                                    </CollapsibleTrigger>
-                                    <CollapsibleContent className="px-4 pb-4">
-                                        <p className="text-gray-700 mb-3">{article.content}</p>
-                                        <div className="flex items-center space-x-4 text-sm text-gray-500">
-                                            <span className="bg-blue-100 text-blue-800 px-2 py-1 rounded text-xs">
-                                                {article.category}
-                                            </span>
-                                            <span>Author: {article.author}</span>
-                                            <span>Updated: {formatDate(article.lastUpdated)}</span>
-                                            {article.url && (
-                                                <a href={article.url} className="text-orange-600 hover:text-orange-700 hover:underline">
-                                                    View Full Article
-                                                </a>
-                                            )}
+                        <div className="articles-section">
+                            <h2 className="articles-title">
+                                Here are the sample articles that power the answers about your questions
+                            </h2>
+                            <div className="articles-list">
+                                {data.articles.map((article) => (
+                                    <div key={article.id} className="article-item">
+                                        <span className="article-title">{article.policyName}</span>
+                                        <svg
+                                            width="20"
+                                            height="20"
+                                            viewBox="0 0 24 24"
+                                            fill="none"
+                                            stroke="currentColor"
+                                            strokeWidth="2"
+                                        >
+                                            <polyline points="9 18 15 12 9 6" />
+                                        </svg>
+                                    </div>
+                                ))}
+                            </div>
+
+                            <button className="explore-link">
+                                <span>Explore all {data.title}</span>
+                                <svg
+                                    width="16"
+                                    height="16"
+                                    viewBox="0 0 24 24"
+                                    fill="none"
+                                    stroke="currentColor"
+                                    strokeWidth="2"
+                                >
+                                    <polyline points="9 18 15 12 9 6" />
+                                </svg>
+                            </button>
+
+                            <div className="debug-section">
+                                <button
+                                    className="debug-info-toggle"
+                                    onClick={() => setIsDebugOpen(!isDebugOpen)}
+                                >
+                                    <svg
+                                        width="16"
+                                        height="16"
+                                        viewBox="0 0 24 24"
+                                        fill="none"
+                                        stroke="currentColor"
+                                        strokeWidth="2"
+                                    >
+                                        <circle cx="12" cy="12" r="10" />
+                                        <line x1="12" y1="16" x2="12" y2="12" />
+                                        <line x1="12" y1="8" x2="12.01" y2="8" />
+                                    </svg>
+                                    <span>Debug Information</span>
+                                </button>
+                                {isDebugOpen && (
+                                    <div className="debug-details">
+                                        <div className="debug-item">
+                                            <strong>Debug Info:</strong> Successfully loaded: {data.title}
                                         </div>
-                                    </CollapsibleContent>
-                                </div>
-                            </Collapsible>
-                        ))}
+                                        <div className="debug-item">
+                                            <strong>Section:</strong> {data.id}
+                                        </div>
+                                        <div className="debug-item">
+                                            <strong>Assistant ID:</strong> None (will use ODIN)
+                                        </div>
+                                        <div className="debug-item">
+                                            <strong>Has Data:</strong> Yes
+                                        </div>
+                                        <div className="debug-item">
+                                            <strong>Title:</strong> {data.title}
+                                        </div>
+                                        <div className="debug-item">
+                                            <strong>Articles Count:</strong> {data.articles.length}
+                                        </div>
+                                        <div className="debug-item">
+                                            <strong>Try It Yourself:</strong> {data.scenario ? 'Yes' : 'No'}
+                                        </div>
+                                        <div className="debug-item">
+                                            <strong>Assistant ID from Data:</strong> Not specified
+                                        </div>
+                                    </div>
+                                )}
+                            </div>
+                        </div>
                     </div>
                 </div>
+            )}
 
-                {/* Learn More Link */}
-                {data.learnMoreLink && (
-                    <div className="flex items-center space-x-2 text-orange-600 hover:text-orange-700 transition-colors cursor-pointer mb-8">
-                        <ChevronRight className="w-4 h-4" />
-                        <span className="font-medium">{data.learnMoreLink}</span>
+            <div className={`chat-panel ${!isCenterPanelOpen ? 'expanded' : ''}`}>
+                <div className="chat-controls-header">
+                    <select className="model-select">
+                        <option>GPT-4o</option>
+                        <option>GPT-4</option>
+                        <option>GPT-3.5</option>
+                    </select>
+                    <button className="prompts-button" onClick={() => setIsPromptModalOpen(true)}>Prompts</button>
+                    <button className="clear-button">Clear</button>
+                </div>
+
+                <div className="chat-workspace-content">
+                    <FishIcon />
+
+                    <h1 className="workspace-title">Welcome to BabelPhish</h1>
+
+                    <p className="workspace-subtitle">
+                        Start by typing a command or query below to create your first widget.
+                    </p>
+
+                    <div className="quick-actions-workspace">
+                        <div className="quick-actions-title">Quick browse items</div>
+
+                        <div className="action-links-workspace">
+                            <a href="#" className="action-link-workspace">
+                                <Sparkles className="icon" />
+                                <span>Get my incidents</span>
+                            </a>
+
+                            <a href="#" className="action-link-workspace">
+                                <Sparkles className="icon" />
+                                <span>Show me high priority changes</span>
+                            </a>
+
+                            <a href="#" className="action-link-workspace">
+                                <Sparkles className="icon" />
+                                <span>Are there any recurring problems?</span>
+                            </a>
+                        </div>
                     </div>
-                )}
 
-                {/* Debug Section */}
-                <div className="mt-8">
-                    <Collapsible open={showDebug} onOpenChange={setShowDebug}>
-                        <CollapsibleTrigger asChild>
-                            <button className="flex items-center space-x-2 text-sm text-gray-400 hover:text-gray-600 transition-colors mb-2">
-                                <HelpCircle className="w-4 h-4" />
-                                <span>Debug Information</span>
-                            </button>
-                        </CollapsibleTrigger>
-                        <CollapsibleContent className="mt-2 p-3 bg-gray-100 rounded text-xs space-y-1 text-gray-600">
-                            <div><strong>Debug Info:</strong> Successfully loaded: {data.title}</div>
-                            <div><strong>Section:</strong> {data.id}</div>
-                            <div><strong>Assistant ID:</strong> None (will use ODIN)</div>
-                            <div><strong>Has Data:</strong> Yes</div>
-                            <div><strong>Title:</strong> {data.title}</div>
-                            <div><strong>Articles Count:</strong> {data.articles.length}</div>
-                            <div><strong>Try It Yourself:</strong> {data.scenario ? 'Yes' : 'No'}</div>
-                            <div><strong>Assistant ID from Data:</strong> Not specified</div>
-                        </CollapsibleContent>
-                    </Collapsible>
+                    <div className="workspace-input-container">
+                        <input
+                            type="text"
+                            className="workspace-message-input"
+                            placeholder="Please type your message here"
+                            value={messageInput}
+                            onChange={(e) => setMessageInput(e.target.value)}
+                            onKeyPress={handleKeyPress}
+                        />
+                        <Sparkles className="workspace-input-icon" onClick={handleSendMessage} />
+                    </div>
+
+                    <div className="workspace-input-footer">
+                        <button>Use Commands</button>
+                        <button>Workspace</button>
+                    </div>
                 </div>
             </div>
+
+            <PromptCatalogModal
+                isOpen={isPromptModalOpen}
+                onClose={() => setIsPromptModalOpen(false)}
+            />
         </div>
     );
 }
